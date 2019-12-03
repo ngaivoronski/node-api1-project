@@ -9,25 +9,26 @@ server.use(express.json());
 
 // CRUD
 
-// Test if server works
-server.get('/', (req, res) => {
-    res.send({ api: 'up and running...'})
-})
-
 // Add a user
 server.post('/api/users', (req, res) => {
     // get the data the client sent
     const userData = req.body;
 
-    // call the db and add the user
-    db.insert(userData)
-    .then(user => {
-        res.status(201).json(user);
-    })
-    .catch(err => {
-        console.log('error on POST /api/users', err);
-        res.status(500).json({ errorMessage: 'error adding a user to the database' })
-    });
+    if (!userData.name || !userData.bio){
+        res.status(400).json({ error: 'Please provide name and bio for the user.' })
+    } else {
+        // call the db and add the user
+        db.insert(userData)
+        .then(newUser => {
+            db.findById(newUser.id).then(user => {
+                res.status(201).json(user);
+            })
+        })
+        .catch(err => {
+            console.log('error on POST /api/users', err);
+            res.status(500).json({ error: 'There was an error while saving the user to the database' })
+        });
+    }
 });
 
 // Get a list of users
@@ -37,7 +38,7 @@ server.get('/api/users', (req, res) => {
     })
     .catch(err => {
         console.log('error on GET /api/users', err);
-        res.status(500).json({ errorMessage: 'error getting list of users from the database' })
+        res.status(500).json({ error: 'The users information could not be retrieved.' })
     })
 })
 
@@ -46,11 +47,14 @@ server.get('/api/users/:id', (req, res) => {
     const id = req.params.id;
 
     db.findById(id).then(user => {
-        res.status(200).json(user);
+        if(user) {
+            res.status(200).json(user);
+        } 
+        res.status(404).json({ error: 'The user with the specified ID does not exist.' })
     })
     .catch(err => {
         console.log('error on GET /api/user/:id', err);
-        res.status(500).json({ errorMessage: 'error getting a specific user from the database' })
+        res.status(500).json({ error: 'The user information could not be retrieved.' })
     })
 })
 
@@ -67,18 +71,18 @@ server.delete('/api/users/:id', (req, res) => {
     db.remove(id).then(removed => {
         if(removed) {
             res.status(200).json({
-                message: 'user removed successfully', deletedUser
+                message: 'User removed successfully', deletedUser
             })
             
         } else {
             res.status(404).json({
-                message: 'user not found'
+                message: 'The user with the specified ID does not exist.'
             })
         }
     })
     .catch(err => {
         console.log('error on DELETE /api/users/:id', err);
-        res.status(500).json({ errorMessage: 'error removing the user' })
+        res.status(500).json({ error: 'The user could not be removed.' })
     });
 })
 
@@ -89,17 +93,25 @@ server.put('/api/users/:id', (req, res) => {
 
     const userData = req.body;
 
+    if (!userData.name || !userData.bio){
+        res.status(400).json({ error: 'Please provide name and bio for the user.' })
+    }
+
     // call the db and add the user
     db.update(id, userData)
     .then(user => {
+        // if user wasn't found
+        if(!user) {
+            res.status(404).json({ error: 'The user with the specified ID does not exist.' })
+        }
+        // if user was updated respond with list of users
         db.find().then(users => {
             res.status(200).json(users);
         })
-        // res.status(200).json(user);
     })
     .catch(err => {
         console.log('error on PUT /api/users/:id', err);
-        res.status(500).json({ errorMessage: 'error updating a user in the database' })
+        res.status(500).json({ error: 'The user information could not be modified.' })
     });
 });
 
